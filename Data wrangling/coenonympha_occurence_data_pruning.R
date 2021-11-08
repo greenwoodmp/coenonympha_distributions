@@ -88,3 +88,5 @@ c_data <- c_data %>%
   dplyr::arrange(species)
 
 write.csv2(c_data, here("./Data wrangling/Processed data/coenonympha_occurrence_data.csv"))
+
+#end of file
