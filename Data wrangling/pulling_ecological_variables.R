@@ -150,6 +150,42 @@ extracted_climate <- extract(climate, occur_points, cellnumbers=TRUE)
 extracted_altitude <- extract(altitude, occur_points, cellnumbers=TRUE)
 extracted_biome <- extract(biome, occur_points, cellnumbers=TRUE)
 
+
+#--------------------------------------------------------------#
+#### Assigning Ecological Raster Data to Occurrence Records ####
+#--------------------------------------------------------------#
+
+# Read in the occurrence data 
+# Need to indicate that commas are the decimals in this dataset - these will be converted to periods
+occur <- read.csv(here("./Data wrangling/Processed data/coenonympha_occurrence_data.csv"),
+                  sep=';',
+                  dec=','
+                  ) 
+
+# Pull only the latitude and longitude data from the file
+occur_points <- occur[c("decimalLongitude", "decimalLatitude")]
+
+extracted_climate <- raster::extract(climate, occur_points, cellnumbers=TRUE)
+extracted_altitude <- raster::extract(altitude, occur_points, cellnumbers=TRUE)
+extracted_biome <- raster::extract(biome, occur_points, cellnumbers=TRUE)
+
+# Test to see if the raster cells IDed in each case of extraction are the same
+# If they are identical, the datasets can be simply appended to eachother
+identical(extracted_climate[,1], extracted_altitude[,1])
+identical(extracted_biome[,1], extracted_climate[,1])
+identical(extracted_biome[,1], extracted_altitude[,1])
+
+# Generate a dataframe containing species names and all the climate/ecology rasters
+#   mapped to the occurrence data.
+# The raster cell calls are retained for a point filtering step coming up next
+dataset <- data.frame(occur$species, 
+                      occur_points, 
+                      extracted_climate, 
+                      extracted_altitude[,-1], # The raster cell ID is removed as it is already captured in extracted_climate
+                      extracted_biome[,-1] # The raster cell ID is removed as it is already captured in extracted_climate
+                      )
+
+
 #------------------------------------------------#
 #### Subsampling Occurrence Data with Rasters ####
 #------------------------------------------------#
@@ -160,70 +196,40 @@ extracted_biome <- extract(biome, occur_points, cellnumbers=TRUE)
 # To reduce the impact of this "geographic sampling bias" on the occurrence data,
 #   the occurrence points are resampled to ensure that, for each taxon, presence
 #   within an environmental raster cell is only counted once.
-# Notably, as all the raster cells are aligned, any can be used for this 
-#   the following occurrence point subsampling procedure
+# To do this, the raster cell number calls will be used - for each raster cell
+#   per species, only a single occurrence point will be retained, preventing
+#   the overrepresentation of a species within a close sampling region
 
-# Pull the previously pruned occurrence data for Coenonympha
-occur <- read.csv(here("./Data wrangling/Processed data/coenonympha_occurrence_data.csv"),
-                  sep=';',
-                  dec=','
-                  )
+subsampled_dataset <- dataset %>%
+  group_by(occur.species, cells) %>%
+  slice(1) # slice will select only 1 occurrence entry per raster location per species
 
-# Because the subsampling procedure takes a lot of time, I am honing it with a
-#   randomly subsampled dataset 
-t_occur <- occur %>%
-  group_by(species) %>%
-  slice_sample(n=100) # slice_sample will subsample to 100 rows or the total row number if <100
+# Confirm raster subsampling on plot
+plot(altitude[[1]],
+     xlim=range(-10:10), # The x and y lims used are arbitrary
+     ylim=range(30:45),
+     alpha=0.3
+     )
+points(x=as.numeric(unlist(subsampled_dataset["decimalLongitude"])), # the numeric values must be unlisted to plot
+       y=as.numeric(unlist(subsampled_dataset["decimalLatitude"])), # the numeric values must be unlisted to plot
+       pch="."
+       )
 
-occur_points <- t_occur[,c(5,4)]
-  
-thinned_occur <- t_occur %>% 
-  group_by("species") %>% # ensure that sampling is done separately for each species
-  
-  gridSample(xy, altitude, n=1)
-
-                
+# Remove the raster ID column from the dataset
+subsampled_dataset <- subset(subsampled_dataset, select=-c(cells))
 
 
+#------------------------------------------------------------------#
+#### Preparing the Final Dataset for Spatial and Niche Analysis ####
+#------------------------------------------------------------------#
 
-#--------------------------------------------------------------#
-#### Assigning Ecological Raster Data to Occurrence Records ####
-#--------------------------------------------------------------#
-
-
-
-
-
-
-
-# Read in the occurrence data 
-# Need to indicate that commas are the decimals in this dataset - these will be converted to periods
-occur <- read.csv(here("./Data wrangling/Processed data/coenonympha_occurrence_data.csv"),
-                  sep=';',
-                  dec=','
-                  ) 
-
-# Pull only the latitude and longitude data from the file
-occur_points <- occur[c(5, 4)]# lon and lat seem to be flipped - check this in pruning script
-
-extracted_climate <- extract(climate, occur_points)
-#the extracted bios correspond to annual temp (1), annual precipitation (12) and seasonality in temp (4) and precipitation (15)
-extracted_altitude <- extract(predictorse, occur_points)
-extracted_biome <- extract(predictorsbiome, occur_points)
-
-#looking at points on rasters
-samp <- sample(nrow(occur), 50000)
-plot(predictorsbiome)
-points(occur_points[samp,], pch='.')
-
-final_dataset <- data.frame(occur$species, occur_points, extracted_valuesb, extracted_valuese, extracted_valuesbiome)
 colnames(final_dataset) <- c('Species','decimalLongitude','decimalLatitude',
                              'MeanTemp','MeanTempWarmQuart','MeanTempColdQuart',
                              'MeanPrecip','PrecipWet','PrecipDry','PrecipSeasonality',
                              'PrecipWetQuart','PrecipDryQuart','PrecipWarmQuart','PrecipColdQuart',
                              'MeanDiurnal','Isothermality','TempSeasonality','MaxTempWarm','MaxTempCold',
                              'TempAnnualRange','MeanTempWetQuart','MeanTempDryQuart',
-                             'Elevation','Biome')
+                             'Altitude','Biome')
 
 
 
@@ -244,5 +250,7 @@ final_dataset <- final_dataset %>%
                  mean(Elevation, na.rm=TRUE) + (2.5 * sd(Elevation, na.rm=TRUE))))
 
 
-write.csv(final_dataset, 'Final dataset.csv')
+write.csv(final_dataset,
+          here("./Data wrangling/Processed data/coenonympha_spatial_data.csv")
+          )
 
