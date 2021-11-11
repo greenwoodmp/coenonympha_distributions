@@ -12,8 +12,10 @@ rm(list=ls())
 #------------------------#
 
 #install the pacman package manager if necessary
-if (!requireNamespace("pacman", quietly = TRUE))
+if(!requireNamespace("pacman", quietly = TRUE)){
   install.packages("pacman")
+  }
+
 
 pacman::p_load(here, # to provide document paths relative to the R project
                rgdal, # for the fread function
@@ -25,7 +27,7 @@ pacman::p_load(here, # to provide document paths relative to the R project
                tidyverse,
                sf, # for reading in shape files - st_read()
                fasterize,
-               ggplot2, # for graph plotting
+               ggplot2 # for graph plotting
                )
 
 #---------------------------------#
@@ -129,6 +131,24 @@ plot(biome,
 # It may be useful to look into cropping the original biome shapefile by the
 #   worldclim rasters for added accuracy (see, as a start, https://stackoverflow.com/questions/23073669/clipping-raster-using-shapefile-in-r-but-keeping-the-geometry-of-the-shapefile)
 
+
+#--------------------------------------------------------------#
+#### Assigning Ecological Raster Data to Occurrence Records ####
+#--------------------------------------------------------------#
+
+# Read in the pruned occurrence data 
+# Need to indicate that commas are the decimals in this dataset - these will be converted to periods
+occur <- read.csv(here("./Data wrangling/Processed data/coenonympha_occurrence_data.csv"),
+                  sep=';',
+                  dec=','
+                  ) 
+
+# Pull only the latitude and longitude data from the file
+occur_points <- occur[c(5, 4)]# lon and lat seem to be flipped - check this in pruning script
+
+extracted_climate <- extract(climate, occur_points, cellnumbers=TRUE)
+extracted_altitude <- extract(altitude, occur_points, cellnumbers=TRUE)
+extracted_biome <- extract(biome, occur_points, cellnumbers=TRUE)
 
 #------------------------------------------------#
 #### Subsampling Occurrence Data with Rasters ####
