@@ -136,25 +136,6 @@ plot(biome,
 #### Assigning Ecological Raster Data to Occurrence Records ####
 #--------------------------------------------------------------#
 
-# Read in the pruned occurrence data 
-# Need to indicate that commas are the decimals in this dataset - these will be converted to periods
-occur <- read.csv(here("./Data wrangling/Processed data/coenonympha_occurrence_data.csv"),
-                  sep=';',
-                  dec=','
-                  ) 
-
-# Pull only the latitude and longitude data from the file
-occur_points <- occur[c(5, 4)]# lon and lat seem to be flipped - check this in pruning script
-
-extracted_climate <- extract(climate, occur_points, cellnumbers=TRUE)
-extracted_altitude <- extract(altitude, occur_points, cellnumbers=TRUE)
-extracted_biome <- extract(biome, occur_points, cellnumbers=TRUE)
-
-
-#--------------------------------------------------------------#
-#### Assigning Ecological Raster Data to Occurrence Records ####
-#--------------------------------------------------------------#
-
 # Read in the occurrence data 
 # Need to indicate that commas are the decimals in this dataset - these will be converted to periods
 occur <- read.csv(here("./Data wrangling/Processed data/coenonympha_occurrence_data.csv"),
@@ -186,9 +167,9 @@ dataset <- data.frame(occur$species,
                       )
 
 
-#------------------------------------------------#
-#### Subsampling Occurrence Data with Rasters ####
-#------------------------------------------------#
+#-------------------------------------------------#
+#### Subsampling Occurrence Data Using Rasters ####
+#-------------------------------------------------#
 
 # There is almost certainly sampling bias in the occurrence dataset, with
 #   repeated ID of the same species in some regions (e.g., in close proximity 
@@ -202,7 +183,8 @@ dataset <- data.frame(occur$species,
 
 subsampled_dataset <- dataset %>%
   group_by(occur.species, cells) %>%
-  slice(1) # slice will select only 1 occurrence entry per raster location per species
+  drop_na() %>% # Remove any rows for which any raster has an NA before subsampling
+  slice(1) # Slice will select only 1 occurrence entry per raster location per species
 
 # Confirm raster subsampling on plot
 plot(altitude[[1]],
@@ -218,12 +200,15 @@ points(x=as.numeric(unlist(subsampled_dataset["decimalLongitude"])), # the numer
 # Remove the raster ID column from the dataset
 subsampled_dataset <- subset(subsampled_dataset, select=-c(cells))
 
+# Look at the remaining occurrence point counts per species
+counts <- table(subsampled_dataset$occur.species)
+
 
 #------------------------------------------------------------------#
 #### Preparing the Final Dataset for Spatial and Niche Analysis ####
 #------------------------------------------------------------------#
 
-colnames(final_dataset) <- c('Species','decimalLongitude','decimalLatitude',
+colnames(subsampled_dataset) <- c('Species','decimalLongitude','decimalLatitude',
                              'MeanTemp','MeanTempWarmQuart','MeanTempColdQuart',
                              'MeanPrecip','PrecipWet','PrecipDry','PrecipSeasonality',
                              'PrecipWetQuart','PrecipDryQuart','PrecipWarmQuart','PrecipColdQuart',
@@ -231,26 +216,9 @@ colnames(final_dataset) <- c('Species','decimalLongitude','decimalLatitude',
                              'TempAnnualRange','MeanTempWetQuart','MeanTempDryQuart',
                              'Altitude','Biome')
 
-
-
-# Filter out locations with outlier environmental variables/values
-# Maybe filter for the other variables now?
-final_dataset <- final_dataset %>%
-  drop_na() %>% #there are some NA assignments from the rasters to remove
-  group_by(Species) %>%
-  filter(between(MeanTemp, mean(MeanTemp, na.rm=TRUE) - (2.5 * sd(MeanTemp, na.rm=TRUE)), 
-                 mean(MeanTemp, na.rm=TRUE) + (2.5 * sd(MeanTemp, na.rm=TRUE)))) %>%
-  filter(between(TempSeasonality, mean(TempSeasonality, na.rm=TRUE) - (2.5 * sd(TempSeasonality, na.rm=TRUE)), 
-                 mean(TempSeasonality, na.rm=TRUE) + (2.5 * sd(TempSeasonality, na.rm=TRUE)))) %>%
-  filter(between(MeanPrecip, mean(MeanPrecip, na.rm=TRUE) - (2.5 * sd(MeanPrecip, na.rm=TRUE)), 
-                 mean(MeanPrecip, na.rm=TRUE) + (2.5 * sd(MeanPrecip, na.rm=TRUE)))) %>%
-  filter(between(PrecipSeasonality, mean(PrecipSeasonality, na.rm=TRUE) - (2.5 * sd(PrecipSeasonality, na.rm=TRUE)), 
-                 mean(PrecipSeasonality, na.rm=TRUE) + (2.5 * sd(PrecipSeasonality, na.rm=TRUE)))) %>%
-  filter(between(Elevation, mean(Elevation, na.rm=TRUE) - (2.5 * sd(Elevation, na.rm=TRUE)), 
-                 mean(Elevation, na.rm=TRUE) + (2.5 * sd(Elevation, na.rm=TRUE))))
-
-
-write.csv(final_dataset,
-          here("./Data wrangling/Processed data/coenonympha_spatial_data.csv")
+data.table::fwrite(subsampled_dataset,
+          here("./Data wrangling/Processed data/coenonympha_spatial_data.csv"),
+          sep=",",
+          dec="."
           )
 
