@@ -1,9 +1,5 @@
 rm(list=ls())
 
-
-# LOOK AT GRIDSAMPLE FOR GEOGRAPHIC SUBSAMPLING
-
-
 # This data preparation process largely follows:
 #   https://rspatial.org/raster/sdm/4_sdm_envdata.html
 
