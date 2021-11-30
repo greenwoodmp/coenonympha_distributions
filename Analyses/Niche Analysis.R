@@ -152,8 +152,18 @@ rm(dummy, species.points.dummy)
 # Plot the geographic data with the species niche centroid positions
                                                             # bring in the biome variable to colour position points
 ggplot(niche.points, aes(x=CS1, y=CS2, colour=as.factor(data$Species)))+
-  theme(legend.position = 'none',
-        panel.background = element_blank())+
+  theme(
+    panel.background=element_blank(),
+    panel.grid.major=element_blank(),
+    panel.grid.minor=element_blank(),
+    panel.border=element_rect(colour='black', fill=NA, size=0.5),
+    #legend.title=element_blank(),
+    legend.position='none',
+    legend.key=element_rect(fill='white'),
+    axis.title=element_text(size=14),
+    axis.text=element_text(size=12),
+    legend.title=element_text(size=12)
+  )+
   geom_point(alpha=0.3)+
   stat_ellipse(aes(x=CS1, y=CS2, group=as.factor(data$Species)), level=0.95, col="black")+
   #geom_segment(aes(x=spider$CS1,
