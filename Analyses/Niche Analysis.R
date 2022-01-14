@@ -24,7 +24,9 @@ pacman::p_load(here, # to provide document paths relative to the R project
                NbClust,
                mclust,
                ggforce, # for the covex hull drawing; need to run devtools::install_github("joelgombin/concaveman") for this package to actually work
-               concaveman
+               concaveman,
+               ggrepel,
+               RColorBrewer
                )
 
 data <- read.csv(here("./Data wrangling/Processed data/coenonympha_spatial_data.csv"))
@@ -150,7 +152,12 @@ rm(dummy, species.points.dummy)
 
 
 # Plot the geographic data with the species niche centroid positions
-                                                            # bring in the biome variable to colour position points
+
+# Set colours for eqch species
+clrs <- colorRampPalette(brewer.pal(11, "Paired"))(length(unique(data$Species))) # colors for each species
+
+set.seed(123) # to get consistent label positioning zith geom_text_repel
+
 ggplot(niche.points, aes(x=CS1, y=CS2, colour=as.factor(data$Species)))+
   theme(
     panel.background=element_blank(),
@@ -164,31 +171,52 @@ ggplot(niche.points, aes(x=CS1, y=CS2, colour=as.factor(data$Species)))+
     axis.text=element_text(size=12),
     legend.title=element_text(size=12)
   )+
-  geom_point(alpha=0.3)+
-  stat_ellipse(aes(x=CS1, y=CS2, group=as.factor(data$Species)), level=0.95, col="black")+
+  geom_point(alpha=0.3, col="grey")+
+  stat_ellipse(aes(x=CS1, y=CS2, group=as.factor(data$Species), colour=as.factor(data$Species)), level=0.95, alpha=0.3)+
+  scale_colour_manual(values=clrs)+
   #geom_segment(aes(x=spider$CS1,
   #                 xend=spider$CentreAxis1,
   #                 y=spider$CS2,
   #                 yend=spider$CentreAxis2)) # Drawing the spider lines - linking species points to centroids 
   #geom_mark_hull(expand=0.01,aes(fill=data$Species))+
-  geom_point(data=species.points, aes(x=Axis1,y=Axis2), col='black', size=0.1)+
-  geom_text(data=species.points, aes(x=Axis1,y=Axis2, label=colnames(data2)), col="black")+
+  geom_point(data=species.points, aes(x=Axis1,y=Axis2,fill=row.names(species.points)), col='black', size=5, shape=21)+
+  scale_fill_manual(values=clrs)+
+  geom_text_repel(data=species.points, aes(x=Axis1,y=Axis2, label=colnames(data2)), col="black",
+                  box.padding = unit(0.9, "lines"),
+                  point.padding = unit(0.9, "lines"),
+                  max.overlaps = Inf)+
+  #geom_text(data=species.points, aes(x=Axis1,y=Axis2, label=colnames(data2)), col="black")+
   xlab(paste("PC1 (", round(var.exp[1], digits = 3), " % explained)", sep=""))+
   ylab(paste("PC2 (", round(var.exp[2], digits = 3), " % explained)", sep=""))
 
+ggplot(data=nic$c1,aes(x=CS1, y=CS2))+
+  geom_point()
+
+fviz_pca_var(dudi1,
+             col.var = "contrib", #"contrib", # Color by contributions to the PC
+             #select.var="contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+)
 
 ggplot(niche.points, aes(x=CS1, y=CS3, colour=as.factor(data$Species)))+
   theme(legend.position = 'none',
         panel.background = element_blank())+
-  geom_point(alpha=0.3)+
-  stat_ellipse(aes(x=CS1, y=CS3, group=as.factor(data$Species)), level=0.95, col="black")+
+  geom_point(alpha=0.3, col="grey")+
+  stat_ellipse(aes(x=CS1, y=CS3, group=as.factor(data$Species), colour=as.factor(data$Species)), level=0.95, alpha=0.3)+
+  scale_colour_manual(values=clrs)+
   #geom_segment(aes(x=spider$CS1,
   #                 xend=spider$CentreAxis1,
   #                 y=spider$CS2,
   #                 yend=spider$CentreAxis2)) # Drawing the spider lines - linking species points to centroids 
   #geom_mark_hull(expand=0.01,aes(fill=data$Species))+
-  geom_point(data=species.points, aes(x=Axis1,y=Axis3), col='black', size=0.1)+
-  geom_text(data=species.points, aes(x=Axis1,y=Axis3, label=colnames(data2)), col="black")+
+  geom_point(data=species.points, aes(x=Axis1,y=Axis3,fill=row.names(species.points)), col='black', size=5, shape=21)+
+  scale_fill_manual(values=clrs)+
+  geom_text_repel(data=species.points, aes(x=Axis1,y=Axis3, label=colnames(data2)), col="black",
+                  box.padding = unit(0.9, "lines"),
+                  point.padding = unit(0.9, "lines"),
+                  max.overlaps = Inf)+
+  #geom_text(data=species.points, aes(x=Axis1,y=Axis2, label=colnames(data2)), col="black")+
   xlab(paste("PC1 (", round(var.exp[1], digits = 3), " % explained)", sep=""))+
   ylab(paste("PC3 (", round(var.exp[3], digits = 3), " % explained)", sep=""))
 
@@ -196,15 +224,20 @@ ggplot(niche.points, aes(x=CS1, y=CS3, colour=as.factor(data$Species)))+
 ggplot(niche.points, aes(x=CS2, y=CS3, colour=as.factor(data$Species)))+
   theme(legend.position = 'none',
         panel.background = element_blank())+
-  geom_point(alpha=0.3)+
-  stat_ellipse(aes(x=CS2, y=CS3, group=as.factor(data$Species)), level=0.95, col="black")+
+  geom_point(alpha=0.3, col="grey")+
+  stat_ellipse(aes(x=CS2, y=CS3,  group=as.factor(data$Species), colour=as.factor(data$Species)), level=0.95, alpha=0.3)+
+  scale_colour_manual(values=clrs)+
   #geom_segment(aes(x=spider$CS1,
   #                 xend=spider$CentreAxis1,
   #                 y=spider$CS2,
   #                 yend=spider$CentreAxis2)) # Drawing the spider lines - linking species points to centroids 
   #geom_mark_hull(expand=0.01,aes(fill=data$Species))+
-  geom_point(data=species.points, aes(x=Axis2,y=Axis3), col='black', size=0.1)+
-  geom_text(data=species.points, aes(x=Axis2,y=Axis3, label=colnames(data2)), col="black")+
+  geom_point(data=species.points, aes(x=Axis2,y=Axis3,fill=row.names(species.points)), col='black', size=5, shape=21)+
+  scale_fill_manual(values=clrs)+
+  geom_text_repel(data=species.points, aes(x=Axis2,y=Axis3, label=colnames(data2)), col="black",
+                  box.padding = unit(0.9, "lines"),
+                  point.padding = unit(0.9, "lines"),
+                  max.overlaps = Inf)+
   xlab(paste("PC2 (", round(var.exp[2], digits = 3), " % explained)", sep=""))+
   ylab(paste("PC3 (", round(var.exp[3], digits = 3), " % explained)", sep=""))
  

@@ -172,7 +172,9 @@ pacman::p_load(here, # to provide document paths relative to the R project
                viridis,
                ENMTools,
                dplyr,
-               tibble
+               tibble,
+               data.table,
+               ecospat
 )
 
 data <- read.csv(here("./Data wrangling/Processed data/coenonympha_spatial_data.csv"))
@@ -203,6 +205,7 @@ Env = crop(variables, ext)
 
 # Writing a function for pairwise species comarisons
 
+# Note that ncores = detectCores() -1 could be a useful parameter to set to speed up the niche equivalence and similarity tests
 niche_compare <- function(species1, species2) {
   
   #background by radius
@@ -286,9 +289,11 @@ niche_compare <- function(species1, species2) {
   #D.overlap <- ecospat.niche.overlap (grid.climama, grid.climarc, cor=T)$D 
   
   eq.test <- ecospat.niche.equivalency.test(grid.climsp1, grid.climsp2,
-                                            rep=50, alternative = "lower") ##rep = 1000 recommended for operational runs
+                                            ncores = 5, # change this based on core availability
+                                            rep=1000, alternative = "lower") ##rep = 1000 recommended for operational runs
   
   sim.test <- ecospat.niche.similarity.test(grid.climsp1, grid.climsp2,
+                                            ncores = 5, # change this based on core availability
                                             rep=1000, alternative = "greater",
                                             rand.type=1) 
   output <- data.frame(eq.test$obs$D, eq.test$p.D, sim.test$p.D)
@@ -343,96 +348,16 @@ for(i in 1:length(pairwise.niche$Var1)){
   pairwise.niche$Equivalence_p[i] <- holder$Equivalence_p
   pairwise.niche$Similarity_p[i] <- holder$Similarity_p
   
-  message(paste0("Loop ",i," completed; ",round(i/length(pairwise.niche$Var1), 2),"% done."))
+  message(paste0("Loop ",i," completed; ",round((i/length(pairwise.niche$Var1))*100, 2),"% done."))
 }
 
-#PCA-env
+# Write the niche comparison data to an output file
 
-#background by radius
-ama <- data[data$Species == 'Coenonympha amaryllis',c("decimalLongitude","decimalLatitude")]
-bgama <- background.points.buffer(ama, 
-                                 radius = 200000, 
-                                 n = 10*nrow(ama), 
-                                 mask = Env[[1]])
-arc <- data[data$Species == 'Coenonympha arcania',c("decimalLongitude","decimalLatitude")]
-bgarc <- background.points.buffer(arc, 
-                                 radius = 200000, 
-                                 n = 10*nrow(arc), 
-                                 mask = Env[[1]])
-arcani <- data[data$Species == 'Coenonympha arcanioides',c("decimalLongitude","decimalLatitude")]
-bgarcani <- background.points.buffer(arcani, 
-                                  radius = 200000, 
-                                  n = 10*nrow(arcani), 
-                                  mask = Env[[1]])
-
-# Get environmental data
-extractama <- na.omit(cbind(ama[,1:2], extract(Env, ama[,1:2]), rep(1, nrow(ama))))
-extractarc = na.omit(cbind(arc[,1:2], extract(Env, arc[,1:2]), rep(1, nrow(arc))))
-
-colnames(extractama)[ncol(extractama)] = 'occ'
-colnames(extractarc)[ncol(extractarc)] = 'occ'
-
-extbgama = na.omit(cbind(bgama, extract(Env, bgama), rep(0, nrow(bgama))))
-extbgarc = na.omit(cbind(bgarc, extract(Env, bgarc), rep(0, nrow(bgarc))))
-
-colnames(extbgama)[ncol(extbgama)] = 'occ'
-colnames(extbgarc)[ncol(extbgarc)] = 'occ'
-
-# merge occ and bg data 
-
-
-datama = rbind(extractama, extbgama)
-datarc = rbind(extractarc, extbgarc)
-
-
-pca.env <- dudi.pca(
-  rbind(datama, datarc)[,3:22],
-  scannf=FALSE,
-  nf=2
+data.table::fwrite(pairwise.niche,
+                   here("./Data wrangling/Processed data/coenonympha_niche_comparisons.csv"),
+                   sep=",",
+                   dec="."
 )
-
-#Variable contribution
-ecospat.plot.contrib(contrib=pca.env$co, eigen=pca.env$eig)
-
-scores.globclim<-pca.env$li # PCA scores for the whole study area (all points)
-
-scores.spama <- suprow(pca.env,
-                     extractama[which(extractama[,23]==1),3:22])$li # PCA scores for the species 1 distribution
-scores.sparc <- suprow(pca.env,
-                     extractarc[which(extractarc[,23]==1),3:22])$li # PCA scores for the species 1 distribution
-
-scores.climama <- suprow(pca.env,datama[,3:22])$li # PCA scores for the whole native study area
-scores.climarc <- suprow(pca.env,datarc[,3:22])$li # PCA scores for the whole native study area
-
-
-grid.climama <- ecospat.grid.clim.dyn(
-  glob = scores.globclim,
-  glob1 = scores.climama,
-  sp = scores.spama,
-  R = 100,
-  th.sp = 0
-)
-grid.climarc <- ecospat.grid.clim.dyn(
-  glob = scores.globclim,
-  glob1 = scores.climarc,
-  sp = scores.sparc,
-  R = 100,
-  th.sp = 0
-)
-
-D.overlap <- ecospat.niche.overlap (grid.climama, grid.climarc, cor=T)$D 
-D.overlap
-
-eq.test <- ecospat.niche.equivalency.test(grid.climama, grid.climarc,
-                                          rep=50, alternative = "lower") ##rep = 1000 recommended for operational runs
-ecospat.plot.overlap.test(eq.test, "D", "Equivalency")
-
-sim.test <- ecospat.niche.similarity.test(grid.climama, grid.climarc,
-                                          rep=1000, alternative = "greater",
-                                          rand.type=2) 
-
-
-
 
 
 
